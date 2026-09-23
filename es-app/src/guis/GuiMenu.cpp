@@ -5558,6 +5558,45 @@ void GuiMenu::openNetworkSettings(bool selectWifiEnable, bool selectAdhocEnable)
 		        s->addWithLabel(_("WI-FI COUNTRY"), country);
 		        s->addSaveFunc([country] { SystemConf::getInstance()->set("wifi.country", country->getSelected()); });
 #endif
+
+			s->addEntry(_("SAVED NETWORKS"), true, [window] {
+				auto savedMenu = new GuiSettings(window, _("SAVED NETWORKS").c_str());
+
+				std::vector<std::string> savedNetworks = ApiSystem::getInstance()->getSavedWifiNetworks();
+
+				if (savedNetworks.empty()) {
+					savedMenu->addEntry(_("NO SAVED NETWORKS FOUND"), false, []{});
+				} else {
+					for (const auto& ssid : savedNetworks) {
+						savedMenu->addEntry(ssid, true, [window, ssid, savedMenu] {
+							window->pushGui(new GuiMsgBox(window, _("NETWORK OPTIONS FOR: ") + ssid,
+								_("CONNECT"), [window, ssid] {
+									bool success = ApiSystem::getInstance()->connectSavedWifiNetwork(ssid);
+
+									if (success) {
+										// Update the configuration so the main menu reflects the newly connected SSID
+										//SystemConf::getInstance()->set("wifi.ssid", ssid);
+										//SystemConf::getInstance()->saveSystemConf();
+										window->pushGui(new GuiMsgBox(window, _("CONNECTED SUCCESSFULLY"), _("OK")));
+									} else {
+										window->pushGui(new GuiMsgBox(window, _("FAILED TO CONNECT"), _("OK")));
+									}
+								},
+								_("FORGET"), [window, ssid, savedMenu] {
+									ApiSystem::getInstance()->forgetWifiNetwork(ssid);
+
+									window->pushGui(new GuiMsgBox(window, _("NETWORK FORGOTTEN"), _("OK"), [savedMenu]
+									{
+										savedMenu->close();
+									}));
+								},
+								_("CANCEL"), nullptr
+							));
+						});
+					}
+				}
+				window->pushGui(savedMenu);
+			});
 		}
 
 		if (ApiSystem::getInstance()->isWifiAPModeSupported())
